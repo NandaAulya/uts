@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ant Lion Optimizer (ALO) TSP Visualization</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h1 class="text-2xl font-bold text-center mb-6">Ant Lion Optimizer (ALO) TSP Visualization</h1>
+
+        <div class="flex justify-center mb-4">
+            <button id="startButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Start ALO Optimization
+            </button>
+        </div>
+
+        <div class="flex justify-center mb-6">
+            <div id="gbestFitness" class="text-lg font-semibold text-gray-800 mr-4">
+                Best Fitness: 
+            </div>
+            <div id="gbestPosition" class="text-lg font-semibold text-gray-800">
+                Best Route: 
+            </div>
+        </div>
+
+        <div id="routeMap" class="mt-6 text-center">
+            <h2 class="text-xl font-semibold mb-4">Peta Rute Terbaik</h2>
+            <canvas id="routeCanvas" width="500" height="500"></canvas>
+        </div>
+
+        <div>
+            <canvas id="fitnessChart"></canvas>
+        </div>
+    </div>
+
+    <script type="module">
+        import { tspDistance } from "./travelling_salesman_problem.js";
+        import { AntLionOptimizer } from "./ant.js";
+
+        const routeCanvas = document.getElementById("routeCanvas").getContext("2d");
+        const gbestFitnessElement = document.getElementById("gbestFitness");
+        const gbestPositionElement = document.getElementById("gbestPosition");
+        const startButton = document.getElementById("startButton");
+        const fitnessChartCtx = document.getElementById("fitnessChart").getContext("2d");
+
+        // Data kota (koordinat) dan jarak antar kota (misalnya dalam km)
+        const cities = [[50, 50], [100, 80], [150, 120], [200, 60], [300, 100]];
+        const distances = cities.map((c1, i) => cities.map((c2, j) => i !== j ? Math.hypot(c1[0] - c2[0], c1[1] - c2[1]) : 0));
+
+        const n_particles = 10;
+        const alo = new AntLionOptimizer(n_particles, cities.length, tspDistance, distances, 50);
+
+        let iteration = 0;
+        let gbestFitnessData = [];
+        let labels = [];
+
+        const fitnessChart = new Chart(fitnessChartCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Best Fitness',
+                    data: gbestFitnessData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { display: true, title: { display: true, text: 'Iterations' }},
+                    y: { display: true, title: { display: true, text: 'Fitness Value' }}
+                }
+            }
+        });
+
+        function drawRoute(route) {
+            routeCanvas.clearRect(0, 0, 500, 500);
+
+            cities.forEach((city, index) => {
+                routeCanvas.beginPath();
+                routeCanvas.arc(city[0], city[1], 5, 0, 2 * Math.PI);
+                routeCanvas.fillText(index, city[0] + 10, city[1] + 10);
+                routeCanvas.fill();
+            });
+
+            routeCanvas.beginPath();
+            route.forEach((cityIndex, i) => {
+                const city = cities[cityIndex];
+                if (i === 0) routeCanvas.moveTo(city[0], city[1]);
+                else routeCanvas.lineTo(city[0], city[1]);
+            });
+            routeCanvas.closePath();
+            routeCanvas.stroke();
+        }
+
+        function updateChart() {
+            labels.push(iteration);
+            gbestFitnessData.push(-alo.elite.fitness);
+            fitnessChart.update();
+            drawRoute(alo.elite.position);
+        }
+
+        startButton.addEventListener('click', () => {
+            function runALOIterations() {
+                const maxIterations = 20;
+                let interval = setInterval(() => {
+                    alo.updateAnts(iteration);
+                    alo.updateElite();
+                    gbestFitnessElement.textContent = `Best Fitness: ${-alo.elite.fitness.toFixed(2)}`;
+                    gbestPositionElement.textContent = `Best Route: ${alo.elite.position.join(" -> ")}`;
+                    updateChart();
+                    iteration++;
+                    if (iteration >= maxIterations) clearInterval(interval);
+                }, 200);
+            }
+            runALOIterations();
+        });
+    </script>
+</body>
+</html>
